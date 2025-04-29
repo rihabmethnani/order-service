@@ -1,114 +1,128 @@
-import { Injectable } from '@nestjs/common';
+
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import * as amqp from 'amqplib';
-import { createClient } from 'redis';
 
 @Injectable()
-export class RabbitMQConsumer {
+export class RabbitMQConsumer implements OnModuleDestroy {
   private connection: amqp.Connection;
   private channel: amqp.Channel;
-  private redisClient: any;
+  private readonly exchangeName = 'user_events';
+  private readonly queueName = 'order_service_queue';
+  private isInitialized = false;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
 
   constructor() {
-    this.redisClient = createClient({
-      url: 'redis://localhost:6379',
-    });
-
-    this.redisClient.connect();
     this.init();
   }
 
-  async init() {
+  async onModuleDestroy() {
     try {
-      // Étape 1 : Se connecter à RabbitMQ
+      if (this.channel) await this.channel.close();
+      if (this.connection) await this.connection.close();
+      console.log('🔌 RabbitMQ connection closed');
+    } catch (error) {
+      console.error('❌ Error closing RabbitMQ connection:', error);
+    }
+  }
+
+   async init() {
+    if (this.isInitialized) return;
+    
+    try {
       this.connection = await amqp.connect('amqp://localhost');
+      this.connection.on('close', () => {
+        console.log('❌ RabbitMQ connection closed, attempting to reconnect...');
+        this.scheduleReconnect();
+      });
+      this.connection.on('error', (err) => {
+        console.error('❌ RabbitMQ connection error:', err);
+      });
+
       this.channel = await this.connection.createChannel();
+      this.channel.on('close', () => {
+        console.log('❌ RabbitMQ channel closed');
+      });
+      this.channel.on('error', (err) => {
+        console.error('❌ RabbitMQ channel error:', err);
+      });
 
-      // Étape 2 : Créer l'échange 'user_events'
-      const exchangeName = 'user_events';
-      await this.channel.assertExchange(exchangeName, 'topic', { durable: true });
-      // Étape 3 : Créer une file d'attente temporaire et la lier à l'échange
-      const queue = await this.channel.assertQueue('', { exclusive: true });
-      this.channel.bindQueue(queue.queue, exchangeName, '');
+      await this.channel.assertExchange(this.exchangeName, 'topic', { durable: true });
+      await this.channel.assertQueue(this.queueName, { durable: true });
+      await this.channel.bindQueue(this.queueName, this.exchangeName, 'user.*');
 
-      // Étape 4 : Consommer les messages
-      this.channel.consume(queue.queue, async (msg) => {
+      await this.channel.consume(this.queueName, async (msg) => {
         if (msg) {
-          const event = JSON.parse(msg.content.toString());
-          console.log('Received event:', event);
-
-          switch (event.eventType) {
-            case 'USER_CREATED':
-            case 'USER_UPDATED':
-              // Mettre à jour Redis avec les informations de l'utilisateur
-              await this.redisClient.set(
-                `user:${event.payload._id}`,
-                JSON.stringify(event.payload),
-                {
-                  EX: 3600, // Expiration après 1 heure
-                },
-              );
-              break;
-
-            case 'USER_DELETED':
-              // Supprimer l'utilisateur de Redis
-              await this.redisClient.del(`user:${event.payload._id}`);
-              break;
-
-              case 'USER_LOGGED_IN':
-                // Enregistrer l'utilisateur dans Redis avec son rôle
-                await this.redisClient.set(
-                  `user:${event.payload.userId}`,
-                  JSON.stringify({
-                    _id: event.payload.userId,
-                    email: event.payload.email,
-                    role: event.payload.role,
-                  }),
-                  {
-                    EX: 3600, // Stocker pendant 1 heure
-                  }
-                );
-                break;
-
-            case 'ROLE_VALIDATION_SUCCESS':
-              // Enregistrer la validation réussie dans Redis (optionnel)
-              await this.redisClient.set(
-                `role_validation:${event.payload.userId}`,
-                JSON.stringify({ success: true, ...event.payload }),
-                {
-                  EX: 3600,
-                },
-              );
-              break;
-
-            case 'ROLE_VALIDATION_FAILED':
-              // Enregistrer l'échec de validation dans Redis (optionnel)
-              await this.redisClient.set(
-                `role_validation:${event.payload.userId}`,
-                JSON.stringify({ success: false, ...event.payload }),
-                {
-                  EX: 3600,
-                },
-              );
-              break;
-
-            case 'CRITICAL_ERROR':
-              // Enregistrer les erreurs critiques dans Redis (optionnel)
-              await this.redisClient.set(
-                `critical_error:${event.payload.action}:${event.payload.userId}`,
-                JSON.stringify(event.payload),
-                {
-                  EX: 86400, // Stocker pendant 24 heures
-                },
-              );
-              break;
-
-            default:
-              console.warn('Unknown event type:', event.eventType);
+          try {
+            const event = JSON.parse(msg.content.toString());
+            console.log('📩 Event reçu:', event);
+            
+            await this.handleEvent(event);
+            
+            if (this.channel) {
+              this.channel.ack(msg);
+            }
+          } catch (error) {
+            console.error('❌ Erreur pendant le traitement du message:', error);
+            if (this.channel && msg) {
+              this.channel.nack(msg, false, false);
+            }
           }
         }
-      }, { noAck: true });
+      });
+
+      this.isInitialized = true;
+      this.reconnectAttempts = 0;
+      console.log('✅ RabbitMQ Consumer prêt');
     } catch (error) {
-      console.error('Failed to connect to RabbitMQ or Redis:', error);
+      console.error('❌ Erreur RabbitMQ:', error);
+      this.scheduleReconnect();
+    }
+  }
+
+  private scheduleReconnect() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error(`❌ Max reconnection attempts (${this.maxReconnectAttempts}) reached`);
+      return;
+    }
+
+    this.reconnectAttempts++;
+    const delay = Math.min(5000 * this.reconnectAttempts, 30000); // Max 30s delay
+    
+    console.log(`⌛ Tentative de reconnexion dans ${delay}ms (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    setTimeout(() => this.init(), delay);
+  }
+ 
+
+  private async handleEvent(event: any) {
+    try {
+      const { eventType, payload } = event;
+  
+      switch (eventType) {
+        case 'USER_CREATED':
+          console.log('🎯 Nouveau utilisateur:', payload);
+          // Mettre à jour le cache Redis si nécessaire
+          break;
+        case 'USER_UPDATED':
+          console.log('🔄 Utilisateur modifié:', payload);
+          // Mettre à jour le cache Redis
+          break;
+        case 'USER_DELETED':
+          console.log('🗑️ Utilisateur supprimé:', payload);
+          // Supprimer de Redis
+          break;
+        case 'USER_LOGGED_IN':
+          console.log('🔐 Utilisateur connecté:', payload);
+          break;
+        case 'PARTNER_VALIDATED':
+          console.log('✅ Partenaire validé:', payload);
+          // Mettre à jour le statut dans Redis
+          break;
+        default:
+          console.warn('⚠️ Type d`événement inconnu:', eventType);
+      }
+    } catch (error) {
+      console.error('❌ Erreur pendant handleEvent:', error);
     }
   }
 }

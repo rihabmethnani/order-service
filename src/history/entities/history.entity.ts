@@ -12,13 +12,30 @@ export class History extends Document {
   @Prop({ required: true, ref: 'Order' }) 
   orderId?: string;
 
+  @Field({nullable:true}) 
+  @Prop() 
+  adminId?: string;
+
+  @Field({nullable:true}) 
+  @Prop() 
+  assisatnAdminId?: string;
+
+  
+  @Field({nullable:true}) 
+  @Prop() 
+  driverId?: string;
+
+  @Field({nullable:true}) 
+  @Prop() 
+  partnerId?: string;
+
   @Field(() => String) 
   @Prop({ required: true }) 
   event?: string;
 
   @Field(() => String, { nullable: true }) 
   @Prop() 
-  details?: string;
+  etatPrecedent?: string;
 
   @Field(() => Date) 
   @Prop({ default: Date.now }) 

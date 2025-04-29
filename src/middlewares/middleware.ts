@@ -16,7 +16,7 @@ export class JwtAuthGuard implements CanActivate {
 
       // Appeler l'endpoint `validateToken` dans `user-service`
       const response = await axios.post(
-        'http://localhost:3000/graphql',
+        'http://localhost:4000/graphql',
         {
           query: `
             query ValidateToken {

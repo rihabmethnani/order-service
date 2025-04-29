@@ -3,11 +3,25 @@ import { InputType, Field } from '@nestjs/graphql';
 @InputType()
 export class CreateHistoryInput {
   @Field(() => String)
-  orderId?: string; // ID de la commande associée
+  orderId?: string; 
+
+  
+    @Field({nullable:true}) 
+    adminId?: string;
+  
+    @Field({nullable:true}) 
+    assisatnAdminId?: string;
+  
+    
+    @Field({nullable:true}) 
+    driverId?: string;
+
+    @Field({nullable:true}) 
+    partnerId?: string;
 
   @Field(() => String)
-  event?: string; // Description de l'événement
+  event?: string;
 
   @Field(() => String, { nullable: true })
-  details?: string; // Détails supplémentaires (optionnel)
+  etatPrecedent?: string; 
 }

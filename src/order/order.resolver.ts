@@ -1,11 +1,13 @@
 import { Resolver, Mutation, Args, Query } from '@nestjs/graphql';
 import { OrderService } from './order.service';
 import { CurrentUser } from '../decorators/current-user.decorator';
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CreateOrderInput } from './dto/create-order.input';
-import { Order } from './entities/order.entity/order.entity';
+import { CommonIncidentDescriptions, Order } from './entities/order.entity/order.entity';
 import { Role } from '@/shared/enums/role.enum';
 import { ReportIncidentInput } from './dto/report.incident.input';
+import { OrderStatus } from '@/shared/order.status.enum';
+import { isValidObjectId } from 'mongoose';
 
 @Resolver(() => Order)
 export class OrderResolver {
@@ -25,23 +27,39 @@ export class OrderResolver {
     return this.orderService.create(createOrderInput, user._id);
   }
 
-  @Mutation(() => Order)
-  async assignOrderToDriver(
-    @Args('orderId') orderId: string,
+  // @Mutation(() => Order)
+  // async assignOrderToDriver(
+  //   @Args('orderId') orderId: string,
+  //   @Args('driverId') driverId: string,
+  //   @CurrentUser() user: any,
+  // ): Promise<Order> {
+  //   if (!user || user.role !== Role.ADMIN) {
+  //     throw new ForbiddenException('Only ADMIN can assign orders to drivers.');
+  //   }
+
+  //   return this.orderService.assignOrderToDriver(orderId, driverId, user._id);
+  // }
+
+  @Mutation(() => [Order])
+  async assignOrdersToDriver(
+    @Args('orderIds', { type: () => [String] }) orderIds: string[],
     @Args('driverId') driverId: string,
     @CurrentUser() user: any,
-  ): Promise<Order> {
-    if (!user || user.role !== 'ADMIN') {
-      throw new ForbiddenException('Only ADMIN can assign orders to drivers.');
-    }
-
-    return this.orderService.assignOrderToDriver(orderId, driverId, user._id);
+    ): Promise<Order[]> {
+    const currentUserId = user._id;
+  console.log("currentUser", currentUserId)
+   
+    const updatedOrders = await this.orderService.assignOrdersToDriver(orderIds, driverId, currentUserId);
+  
+    return updatedOrders;
   }
+
+
 
   @Mutation(() => Order)
   async updateOrderStatus(
     @Args('orderId') orderId: string,
-    @Args('status') status: string,
+    @Args('status', { type: () => OrderStatus }) status: OrderStatus,
     @CurrentUser() user: any,
   ): Promise<Order> {
     return this.orderService.updateOrderStatus(orderId, status, user._id);
@@ -63,7 +81,9 @@ export class OrderResolver {
   }
 
   @Query(() => [Order], { name: 'ordersByStatus' })
-  async findOrdersByStatus(@Args('status') status: string): Promise<Order[]> {
+  async findOrdersByStatus(
+    @Args('status', { type: () => OrderStatus }) status: OrderStatus,
+  ): Promise<Order[]> {
     return this.orderService.findByStatus(status);
   }
 
@@ -72,12 +92,37 @@ export class OrderResolver {
     @Args('input') input: ReportIncidentInput,
     @CurrentUser() user: any,
   ): Promise<Order> {
-    // Vérifier les autorisations
     if (!user || ![Role.ADMIN, Role.DRIVER].includes(user.role)) {
       throw new ForbiddenException('Only ADMIN or DRIVER can report an incident.');
     }
 
-    // Appeler le service pour signaler l'incident
-    return this.orderService.reportIncident(input);
+    return this.orderService.reportIncident(input, user._id);
+  }
+
+  
+  @Mutation(() => Order)
+  async recordDeliveryAttempt(
+    @Args('orderId') orderId: string,
+    @CurrentUser() user: any,
+  ): Promise<Order> {
+    if (!user || user.role !== Role.DRIVER) {
+      throw new ForbiddenException('Only DRIVER can record a delivery attempt.');
+    }
+
+    return this.orderService.recordDeliveryAttempt(orderId,user._id);
+  }
+
+ 
+  @Mutation(() => Order)
+  async reportVerificationIncident(
+    @Args('orderId') orderId: string,
+    @Args('incidentType', { type: () => CommonIncidentDescriptions }) incidentType: CommonIncidentDescriptions,
+    @CurrentUser() user: any,
+  ): Promise<Order> {
+    if (!user || ![Role.ADMIN, Role.DRIVER].includes(user.role)) {
+      throw new ForbiddenException('Only ADMIN or DRIVER can report a verification incident.');
+    }
+
+    return this.orderService.reportVerificationIncident(orderId, incidentType,user._id);
   }
 }

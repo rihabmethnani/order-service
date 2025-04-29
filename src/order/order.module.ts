@@ -1,25 +1,29 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { HttpModule } from '@nestjs/axios';
 import { OrderService } from './order.service';
 import { OrderResolver } from './order.resolver';
-import { HttpModule } from '@nestjs/axios';
-import { Order, OrderSchema } from './entities/order.entity/order.entity';
 import { RabbitMQModule } from '../RabbitMq/rabbitmq.module';
-import { UserCacheService } from '../RabbitMq/user-cache.service';
 import { HistoryModule } from '../history/history.module';
+import { RabbitMQConsumer } from '../RabbitMq/rabbitmq.consumer'; // Utilisez le chemin relatif approprié
+import { CourseService } from '../course/course.service'; // Utilisez le chemin relatif approprié
+import { Order, OrderSchema } from './entities/order.entity/order.entity';
+import { CourseModule } from '@/course/course.module';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Order.name, schema: OrderSchema }]), 
-    HttpModule, 
+    MongooseModule.forFeature([{ name: Order.name, schema: OrderSchema }]),
+    HttpModule,
     RabbitMQModule,
-    HistoryModule, 
+    HistoryModule,
+    CourseModule,
   ],
   providers: [
     OrderResolver,
     OrderService,
-    UserCacheService,
+    RabbitMQConsumer,
+    CourseService,
   ],
-  exports: [OrderService, MongooseModule],
+  exports: [OrderService], 
 })
 export class OrderModule {}

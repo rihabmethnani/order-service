@@ -8,13 +8,15 @@ type Order {
   partnerId: String
   adminId: String
   clientId: String!
-  driverId: String!
+  driverId: String
   amount: Float!
   description: String!
   comment: String!
   delayReason: String!
   incidentDescription: CommonIncidentDescriptions
   customIncidentDescription: String
+  fraisLivraison: String!
+  attemptCount: Float!
   createdAt: DateTime!
   updatedAt: DateTime!
   deletedAt: DateTime
@@ -22,32 +24,33 @@ type Order {
 
 """Status of the order"""
 enum OrderStatus {
-  NEW
-  PENDING
-  ASSIGNED
-  IN_TRANSIT
-  DELIVERED
-  FAILED_ATTEMPT
-  RETURNED
-  CANCELLED
-  ON_HOLD
-  RELAUNCHED
-  DELAYED
-  PARTIALLY_DELIVERED
-  IN_STORAGE
-  AWAITING_CONFIRMATION
+  EN_ATTENTE
+  ENTRE_CENTRAL
+  ASSIGNE
+  EN_COURS_LIVRAISON
+  LIVRE
+  ECHEC_LIVRAISON
+  RETOURNE
+  ANNULE
+  EN_ATTENTE_RESOLUTION
+  RELANCE
+  RETARDE
+  PARTIELLEMENT_LIVRE
+  EN_ENTREPOT
+  EN_ATTENTE_CONFIRMATION
+  VERIFICATION
 }
 
 """Incident descriptions of the order"""
 enum CommonIncidentDescriptions {
-  DAMAGED_PACKAGE
-  WRONG_ADDRESS
-  CLIENT_UNAVAILABLE
-  LOST_PACKAGE
-  DELAY_DUE_TO_WEATHER
-  DELAY_DUE_TO_TRAFFIC
-  PACKAGE_REFUSED
-  OTHER
+  COLIS_ENDOMMAGE
+  ADRESSE_INCORRECTE
+  CLIENT_INTROUVABLE
+  COLIS_PERDU
+  RETARD_METEO
+  RETARD_TRAFIC
+  COLIS_REFUSE
+  AUTRE
 }
 
 """
@@ -55,36 +58,91 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+type Course {
+  _id: ID!
+  orderIds: [String!]!
+  driverId: String!
+  adminId: String
+  assistantId: String
+  status: OrderStatus!
+  pointDepart: String!
+  pointArrivee: String!
+  distance: Float!
+  duree: Float!
+  dateDepart: DateTime!
+  dateArrivee: DateTime!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
 type History {
   _id: ID!
   orderId: String!
+  adminId: String
+  assisatnAdminId: String
+  driverId: String
+  partnerId: String
   event: String!
-  details: String
+  etatPrecedent: String
   timestamp: DateTime!
+}
+
+type GeoJSON {
+  type: String!
+  coordinates: [[Float!]!]!
+}
+
+type Route {
+  distance: Float!
+  duration: Float!
+  geometry: GeoJSON!
+}
+
+type Coordinates {
+  latitude: Float!
+  longitude: Float!
 }
 
 type Query {
   orders: [Order!]!
   order(id: String!): Order!
-  ordersByStatus(status: String!): [Order!]!
+  ordersByStatus(status: OrderStatus!): [Order!]!
   orderHistory(orderId: String!): [History!]!
+  courses: [Course!]!
+  course(id: String!): Course!
+  getDriverLocation(driverId: String!): Coordinates!
+  getCoordinatesFromAddress(address: String!): Coordinates!
+  getAddressFromCoordinates(latitude: Float!, longitude: Float!): String!
+  calculateOptimalRoute(driverId: String!, input: CalculateRouteInput!): Route!
+}
+
+input CalculateRouteInput {
+  destinationLatitude: Float!
+  destinationLongitude: Float!
 }
 
 type Mutation {
   createOrder(createOrderInput: CreateOrderInput!): Order!
-  assignOrderToDriver(orderId: String!, driverId: String!): Order!
-  updateOrderStatus(orderId: String!, status: String!): Order!
+  assignOrdersToDriver(orderIds: [String!]!, driverId: String!): [Order!]!
+  updateOrderStatus(orderId: String!, status: OrderStatus!): Order!
   removeOrder(id: String!): Order!
   reportIncident(input: ReportIncidentInput!): Order!
+  recordDeliveryAttempt(orderId: String!): Order!
+  reportVerificationIncident(orderId: String!, incidentType: CommonIncidentDescriptions!): Order!
   createHistory(input: CreateHistoryInput!): History!
+  createCourse(createCourseInput: CreateCourseInput!): Course!
+  updateCourse(id: String!, updateCourseInput: UpdateCourseInput!): Course!
+  removeCourse(id: String!): Course!
+  updateDriverLocation(input: UpdateDriverLocationInput!): Boolean!
 }
 
 input CreateOrderInput {
-  status: OrderStatus! = NEW
+  status: OrderStatus! = EN_ATTENTE
   clientId: String!
   amount: Float!
   description: String!
   comment: String!
+  fraisLivraison: String!
 }
 
 input ReportIncidentInput {
@@ -95,6 +153,44 @@ input ReportIncidentInput {
 
 input CreateHistoryInput {
   orderId: String!
+  adminId: String
+  assisatnAdminId: String
+  driverId: String
+  partnerId: String
   event: String!
-  details: String
+  etatPrecedent: String
+}
+
+input CreateCourseInput {
+  orderIds: [String!]!
+  driverId: String
+  adminId: String
+  assistantId: String!
+  status: OrderStatus!
+  pointDepart: String!
+  pointArrivee: String!
+  distance: Float!
+  duree: Float!
+  dateDepart: DateTime!
+  dateArrivee: DateTime!
+}
+
+input UpdateCourseInput {
+  orderIds: [String!]
+  driverId: String
+  adminId: String
+  assistantId: String
+  status: OrderStatus
+  pointDepart: String
+  pointArrivee: String
+  distance: Float
+  duree: Float
+  dateDepart: DateTime
+  dateArrivee: DateTime
+}
+
+input UpdateDriverLocationInput {
+  driverId: String!
+  latitude: Float!
+  longitude: Float!
 }

@@ -10,6 +10,8 @@ import { JwtService } from '@nestjs/jwt';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { RabbitMQModule } from './RabbitMq/rabbitmq.module';
 import { HistoryModule } from './history/history.module';
+import { TrackingModule } from './tracking/tracking.module';
+import { CourseModule } from './course/course.module';
 
 @Module({
   imports: [
@@ -27,8 +29,9 @@ import { HistoryModule } from './history/history.module';
     HttpModule,
     OrderModule,
     RabbitMQModule,
-    HistoryModule
+    HistoryModule,
+    TrackingModule,
+    CourseModule,
   ],
-  providers: [OrderService, OrderResolver],
 })
 export class AppModule {}
