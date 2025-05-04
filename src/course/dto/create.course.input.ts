@@ -26,8 +26,8 @@ export class CreateCourseInput {
   @Field()
   pointDepart?: string;
 
-  @Field()
-  pointArrivee?: string;
+  @Field(() => [String])
+  pointArrivee?: string[];
 
   @Field(() => Number)
   @IsNumber()

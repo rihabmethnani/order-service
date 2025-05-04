@@ -4,10 +4,35 @@ import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
+// 1. Enum des régions tunisiennes
+export enum TunisianRegion {
+  ARIANA = 'Ariana',
+  BEJA = 'Béja',
+  BEN_AROUS = 'Ben Arous',
+  BIZERTE = 'Bizerte',
+  GABES = 'Gabès',
+  GAFSA = 'Gafsa',
+  JENDOUBA = 'Jendouba',
+  KAIROUAN = 'Kairouan',
+  KASSERINE = 'Kasserine',
+  KEBILI = 'Kébili',
+  KEF = 'Le Kef',
+  MAHDIA = 'Mahdia',
+  MANOUBA = 'La Manouba',
+  MEDENINE = 'Médenine',
+  MONASTIR = 'Monastir',
+  NABEUL = 'Nabeul',
+  SFAX = 'Sfax',
+  SIDI_BOUZID = 'Sidi Bouzid',
+  SILIANA = 'Siliana',
+  SOUSSE = 'Sousse',
+  TATAOUINE = 'Tataouine',
+  TOZEUR = 'Tozeur',
+  TUNIS = 'Tunis',
+  ZAGHOUAN = 'Zaghouan',
+}
 
-
-
-
+// Enums existants
 export enum CommonIncidentDescriptions {
   COLIS_ENDOMMAGE = 'Colis endommagé',
   ADRESSE_INCORRECTE = 'Adresse incorrecte',
@@ -19,7 +44,7 @@ export enum CommonIncidentDescriptions {
   AUTRE = 'Autre',
 }
 
-
+// Enregistrement des enums pour GraphQL
 registerEnumType(OrderStatus, {
   name: 'OrderStatus',
   description: 'Status of the order',
@@ -30,7 +55,12 @@ registerEnumType(CommonIncidentDescriptions, {
   description: 'Incident descriptions of the order',
 });
 
+registerEnumType(TunisianRegion, {
+  name: 'TunisianRegion',
+  description: 'Les 24 régions de la Tunisie',
+});
 
+// Classe Order
 @ObjectType()
 @Schema({ timestamps: true })
 export class Order extends Document {
@@ -89,6 +119,10 @@ export class Order extends Document {
   @Prop({ default: 0 })
   attemptCount?: number;
 
+  @Field(() => TunisianRegion, { nullable: true })
+  @Prop({ enum: TunisianRegion })
+  region?: TunisianRegion;
+
   @Field(() => Date)
   @Prop()
   createdAt?: Date;
@@ -101,6 +135,6 @@ export class Order extends Document {
   @Prop()
   deletedAt?: Date;
 }
-export type OrderDocument = Order & Document;
 
+export type OrderDocument = Order & Document;
 export const OrderSchema = SchemaFactory.createForClass(Order);

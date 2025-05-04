@@ -36,4 +36,9 @@ export class CourseResolver {
   removeCourse(@Args('id', { type: () => String }) id: string) {
     return this.courseService.remove(id);
   }
+
+//   @Mutation(() => Course)
+// createOptimizedCourse(@Args('input') input: CreateCourseInput) {
+//   return this.courseService.createOptimizedCourse(input);
+// }
 }

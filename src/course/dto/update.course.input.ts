@@ -9,9 +9,9 @@ export class UpdateCourseInput extends PartialType(CreateCourseInput) {
   @IsOptional()
   pointDepart?: string;
 
-  @Field({ nullable: true })
+  @Field(() => [String], { nullable: true })
   @IsOptional()
-  pointArrivee?: string;
+  pointArrivee?: string[];
 
   @Field(() => Number, { nullable: true })
   @IsOptional()

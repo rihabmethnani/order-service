@@ -33,9 +33,9 @@ export class Course extends Document {
   @Prop()
   pointDepart?: string;
 
-  @Field()
+  @Field(() => [String])
   @Prop()
-  pointArrivee?: string;
+  pointArrivee?: string[];
 
   @Field(() => Number)
   @Prop()

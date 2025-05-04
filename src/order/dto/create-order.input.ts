@@ -1,6 +1,7 @@
 // src/order/dto/create-order.input.ts
 import { OrderStatus } from '@/shared/order.status.enum';
 import { InputType, Field } from '@nestjs/graphql';
+import { TunisianRegion } from '../entities/order.entity/order.entity';
 
 @InputType()
 export class CreateOrderInput {
@@ -20,5 +21,8 @@ export class CreateOrderInput {
   comment?: string;
 
   @Field()
-  fraisLivraison?:string;
+  fraisLivraison?: string;
+
+  @Field(() => TunisianRegion)
+  region?: TunisianRegion;
 }
