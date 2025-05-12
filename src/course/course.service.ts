@@ -81,5 +81,28 @@ export class CourseService {
   //   return newCourse.save();
   // }
   
+
+  async findCoursesByDriverAndDate(
+    driverId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<Course[]> {
+    return this.courseModel.find({
+      driverId,
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    }).exec();
+  }
+
+async findWithOrders(
+  query: any,
+  populateOptions: string | string[] = 'orderIds'
+): Promise<Course[]> {
+  return this.courseModel.find(query)
+    .populate(populateOptions)
+    .exec();
+}
   
 }

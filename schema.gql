@@ -15,8 +15,9 @@ type Order {
   delayReason: String!
   incidentDescription: CommonIncidentDescriptions
   customIncidentDescription: String
-  fraisLivraison: String!
+  fraisLivraison: Float!
   attemptCount: Float!
+  region: TunisianRegion
   createdAt: DateTime!
   updatedAt: DateTime!
   deletedAt: DateTime
@@ -24,20 +25,20 @@ type Order {
 
 """Status of the order"""
 enum OrderStatus {
-  EN_ATTENTE
-  ENTRE_CENTRAL
-  ASSIGNE
-  EN_COURS_LIVRAISON
-  LIVRE
-  ECHEC_LIVRAISON
-  RETOURNE
-  ANNULE
-  EN_ATTENTE_RESOLUTION
-  RELANCE
-  RETARDE
-  PARTIELLEMENT_LIVRE
-  EN_ENTREPOT
-  EN_ATTENTE_CONFIRMATION
+  PENDING
+  IN_CENTRAL_WAREHOUSE
+  ASSIGNED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  DELIVERY_FAILED
+  RETURNED
+  CANCELED
+  PENDING_RESOLUTION
+  FOLLOW_UP
+  DELAYED
+  PARTIALLY_DELIVERED
+  IN_WAREHOUSE
+  AWAITING_CONFIRMATION
   VERIFICATION
 }
 
@@ -51,6 +52,34 @@ enum CommonIncidentDescriptions {
   RETARD_TRAFIC
   COLIS_REFUSE
   AUTRE
+}
+
+"""Les 24 régions de la Tunisie"""
+enum TunisianRegion {
+  ARIANA
+  BEJA
+  BEN_AROUS
+  BIZERTE
+  GABES
+  GAFSA
+  JENDOUBA
+  KAIROUAN
+  KASSERINE
+  KEBILI
+  KEF
+  MAHDIA
+  MANOUBA
+  MEDENINE
+  MONASTIR
+  NABEUL
+  SFAX
+  SIDI_BOUZID
+  SILIANA
+  SOUSSE
+  TATAOUINE
+  TOZEUR
+  TUNIS
+  ZAGHOUAN
 }
 
 """
@@ -73,6 +102,11 @@ type Course {
   dateArrivee: DateTime!
   createdAt: DateTime!
   updatedAt: DateTime!
+}
+
+type OrderStatusCount {
+  status: String
+  count: Float
 }
 
 type History {
@@ -103,10 +137,80 @@ type Coordinates {
   longitude: Float!
 }
 
+type Incident {
+  _id: ID!
+  orderId: Order!
+  reportedBy: String!
+  incidentType: incidentType!
+  customDescription: String
+  description: String!
+  images: [String!]
+  status: IncidentStatus
+  priority: IncidentPriority
+  comments: [CommentInfo!]
+  resolvedBy: String!
+  resolvedAt: DateTime
+  resolutionNotes: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""Incident type enum"""
+enum incidentType {
+  DAMAGED_PACKAGE
+  INCORRECT_ADDRESS
+  CUSTOMER_NOT_FOUND
+  LOST_PACKAGE
+  WEATHER_DELAY
+  TRAFFIC_DELAY
+  REFUSED_PACKAGE
+  OTHER
+}
+
+"""Incident status enum"""
+enum IncidentStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CANCELLED
+}
+
+"""Incident priority enum"""
+enum IncidentPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+type CommentInfo {
+  comment: String!
+  userId: String!
+  createdAt: DateTime!
+}
+
+type IncidentTypeCount {
+  _id: String!
+  count: Int!
+}
+
+type IncidentStatsType {
+  totalIncidents: Int!
+  openIncidents: Int!
+  inProgressIncidents: Int!
+  resolvedIncidents: Int!
+  incidentsByType: [IncidentTypeCount!]!
+}
+
 type Query {
   orders: [Order!]!
   order(id: String!): Order!
+  countByPartner(id: String!): [OrderStatusCount!]!
+  getOrdersByPartnerId(partnerId: String!): [Order!]!
+  getOrdersByClient(clientId: String!): [Order!]!
   ordersByStatus(status: OrderStatus!): [Order!]!
+  getOrdersByIncident: [Order!]!
+  getOrdersCountByStatus: [OrderStatusCount!]!
   orderHistory(orderId: String!): [History!]!
   courses: [Course!]!
   course(id: String!): Course!
@@ -114,6 +218,10 @@ type Query {
   getCoordinatesFromAddress(address: String!): Coordinates!
   getAddressFromCoordinates(latitude: Float!, longitude: Float!): String!
   calculateOptimalRoute(driverId: String!, input: CalculateRouteInput!): Route!
+  getIncidentsByOrderId(orderId: String!): [Incident!]!
+  getAll: [Incident!]!
+  getIncidentById(incidentId: String!): Incident!
+  getIncidentStats: IncidentStatsType!
 }
 
 input CalculateRouteInput {
@@ -134,15 +242,18 @@ type Mutation {
   updateCourse(id: String!, updateCourseInput: UpdateCourseInput!): Course!
   removeCourse(id: String!): Course!
   updateDriverLocation(input: UpdateDriverLocationInput!): Boolean!
+  createIncident(input: CreateIncidentInput!): Incident!
+  updateIncident(input: UpdateIncidentInput!): Incident!
 }
 
 input CreateOrderInput {
-  status: OrderStatus! = EN_ATTENTE
+  status: OrderStatus! = PENDING
   clientId: String!
   amount: Float!
   description: String!
   comment: String!
-  fraisLivraison: String!
+  fraisLivraison: Float!
+  region: TunisianRegion!
 }
 
 input ReportIncidentInput {
@@ -193,4 +304,21 @@ input UpdateDriverLocationInput {
   driverId: String!
   latitude: Float!
   longitude: Float!
+}
+
+input CreateIncidentInput {
+  orderId: String!
+  incidentType: incidentType
+  customDescription: String
+  description: String!
+  images: [String!]
+  priority: IncidentPriority
+}
+
+input UpdateIncidentInput {
+  incidentId: String!
+  status: IncidentStatus
+  priority: IncidentPriority
+  comment: String
+  resolutionNotes: String
 }

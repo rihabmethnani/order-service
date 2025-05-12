@@ -5,7 +5,7 @@ import { TunisianRegion } from '../entities/order.entity/order.entity';
 
 @InputType()
 export class CreateOrderInput {
-  @Field(() => OrderStatus, { defaultValue: OrderStatus.EN_ATTENTE })
+  @Field(() => OrderStatus, { defaultValue: OrderStatus.PENDING })
   status?: OrderStatus;
 
   @Field()
@@ -21,7 +21,7 @@ export class CreateOrderInput {
   comment?: string;
 
   @Field()
-  fraisLivraison?: string;
+  fraisLivraison?: Number;
 
   @Field(() => TunisianRegion)
   region?: TunisianRegion;

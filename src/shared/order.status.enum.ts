@@ -1,17 +1,17 @@
 export enum OrderStatus {
-    EN_ATTENTE = 'EN_ATTENTE', // En attente d'être pris en charge par un chauffeur.
-    ENTRE_CENTRAL = 'ENTRE_CENTRAL', // Le colis est dans un entrepôt central.
-    ASSIGNE = 'ASSIGNE', // Assigné à un chauffeur.
-    EN_COURS_LIVRAISON = 'EN_COURS_LIVRAISON', // En cours de livraison.
-    LIVRE = 'LIVRE', // Livré avec succès.
-    ECHEC_LIVRAISON = 'ECHEC_LIVRAISON', // Tentative de livraison échouée (client introuvable, adresse incorrecte, etc.).
-    RETOURNE = 'RETOURNE', // Retourné au partenaire (si non livrable).
-    ANNULE = 'ANNULE', // Annulé par le client ou le partenaire.
-    EN_ATTENTE_RESOLUTION = 'EN_ATTENTE_RESOLUTION', // En attente de résolution d'un problème (exemple : colis endommagé).
-    RELANCE = 'RELANCE', // Relancé après une tentative échouée.
-    RETARDE = 'RETARDE', // Livraison retardée (conditions météo, etc.).
-    PARTIELLEMENT_LIVRE = 'PARTIELLEMENT_LIVRE', // Une partie du colis a été livrée.
-    EN_ENTREPOT = 'EN_ENTREPOT', // Le colis est stocké temporairement dans un entrepôt.
-    EN_ATTENTE_CONFIRMATION = 'EN_ATTENTE_CONFIRMATION', // En attente de confirmation du client après une tentative de livraison.
-    VERIFICATION = 'VERIFICATION', // En cours de vérification (ex : identité, contenu, etc.).
-  }
+  PENDING = 'PENDING', // Waiting to be taken over by a driver.
+  IN_CENTRAL_WAREHOUSE = 'IN_CENTRAL_WAREHOUSE', // The package is in a central warehouse.
+  ASSIGNED = 'ASSIGNED', // Assigned to a driver.
+  OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY', // Currently being delivered.
+  DELIVERED = 'DELIVERED', // Successfully delivered.
+  DELIVERY_FAILED = 'DELIVERY_FAILED', // Delivery attempt failed (e.g., customer not found, incorrect address, etc.).
+  RETURNED = 'RETURNED', // Returned to partner (if undeliverable).
+  CANCELED = 'CANCELED', // Canceled by the customer or partner.
+  PENDING_RESOLUTION = 'PENDING_RESOLUTION', // Waiting for resolution of an issue (e.g., damaged package).
+  FOLLOW_UP = 'FOLLOW_UP', // Follow-up after a failed attempt.
+  DELAYED = 'DELAYED', // Delivery delayed (e.g., due to weather conditions).
+  PARTIALLY_DELIVERED = 'PARTIALLY_DELIVERED', // Part of the package has been delivered.
+  IN_WAREHOUSE = 'IN_WAREHOUSE', // Temporarily stored in a warehouse.
+  AWAITING_CONFIRMATION = 'AWAITING_CONFIRMATION', // Waiting for customer confirmation after a delivery attempt.
+  VERIFICATION = 'VERIFICATION', // Under verification (e.g., identity, contents, etc.).
+}

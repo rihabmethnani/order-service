@@ -93,46 +93,104 @@ export class OrderService {
         throw new InternalServerErrorException('Failed to create order.');
     }
 }
-  // async assignOrderToDriver(orderId: string, driverId: string, adminId: string): Promise<Order> {
-  //   const isAdmin = await this.validateRole(adminId, [Role.ADMIN]);
-  //   if (!isAdmin) {
-  //     throw new ForbiddenException('Only ADMIN can assign orders to drivers.');
+ 
+
+  // async assignOrdersToDriver(
+  //   orderIds: string[], 
+  //   driverId: string, 
+  //   currentUserId: string
+  // ): Promise<Order[]> {
+  //   const isValidRole = await this.validateRole(currentUserId, [Role.ADMIN, Role.ADMIN_ASSISTANT]);
+  //   if (!isValidRole) {
+  //     throw new ForbiddenException('Only ADMIN or AdminAssistant can assign orders to drivers.');
+  //   }
+    
+  //   if (!isValidObjectId(currentUserId)) {
+  //     throw new BadRequestException('Invalid user ID');
   //   }
   
-  //   const updatedOrder = await this.orderModel
-  //     .findByIdAndUpdate(
-  //       orderId,
-  //       { driverId, status: OrderStatus.ASSIGNE }, // Utilisez le statut ASSIGNE
-  //       { new: true },
-  //     )
-  //     .exec();
-  
-  //   if (!updatedOrder) {
-  //     throw new NotFoundException(`Order with ID ${orderId} not found.`);
+  //   const user = await this.userCacheService.getUserById(currentUserId);
+  //   if (!user) {
+  //     throw new NotFoundException('User not found');
   //   }
   
-  //   // Ajouter un événement d'historique pour l'assignation du driver
-  //   await this.historyService.create({
-  //     orderId,
-  //     event: 'Commande assignée à un driver',
-  //     details: `Driver ID: ${driverId}`,
+  //   const assignDate = new Date();
+  // //nbr des ordres pour driver
+  //   const ordersOnSameDate = await this.orderModel.find({
+  //     driverId,
+  //     dateAssignation: { 
+  //       $gte: new Date(assignDate.setHours(0, 0, 0, 0)), 
+  //       $lt: new Date(assignDate.setHours(23, 59, 59, 999)) 
+  //     },
+  //     status: { $in: [OrderStatus.RELANCE, OrderStatus.EN_COURS_LIVRAISON] }
   //   });
   
-  //   return updatedOrder;
+  //   if (ordersOnSameDate.length + orderIds.length > 10) {
+  //     throw new ForbiddenException('Driver already has 10 or more orders with status RELANCE or EN_COURS_LIVRAISON for this date.');
+  //   }
+  
+  //   const updatedOrders: Order[] = [];
+  //   for (const orderId of orderIds) {
+  //     const existingOrder = await this.orderModel.findById(orderId).exec();
+  //     if (!existingOrder) {
+  //       throw new NotFoundException(`Order with ID ${orderId} not found.`);
+  //     }
+  
+  //     const updatedOrder = await this.orderModel.findByIdAndUpdate(
+  //       orderId,
+  //       { 
+  //         driverId, 
+  //         status: OrderStatus.ASSIGNE, 
+  //         dateAssignation: assignDate 
+  //       },
+  //       { new: true }
+  //     ).exec();
+  
+  //     updatedOrders.push(updatedOrder as Order);
+  
+  //     const historyInput: CreateHistoryInput = {
+  //       orderId,
+  //       event: 'ORDER_ASSIGNED',
+  //       etatPrecedent: existingOrder.status,
+  //       driverId, 
+  //     };
+  
+  //     if (user.role === Role.ADMIN) {
+  //       historyInput.adminId = currentUserId;
+  //     } else if (user.role === Role.ADMIN_ASSISTANT) {
+  //       historyInput.assisatnAdminId = currentUserId;
+  //     }
+  
+  //     await this.historyService.create(historyInput);
+  //   }
+  
+  //   const courseData: CreateCourseInput = {
+  //     orderIds,
+  //     driverId,
+  //     status: OrderStatus.ASSIGNE,
+  //     adminId: user.role === Role.ADMIN ? currentUserId : undefined,
+  //     assistantId: user.role === Role.ADMIN_ASSISTANT ? currentUserId : undefined,
+  //   };
+  
+  //   if (!courseData.orderIds || courseData.orderIds.length < 1 || courseData.orderIds.length > 10) {
+  //     throw new BadRequestException('A course must have between 1 and 10 orders.');
+  //   }
+  
+  //   await this.courseService.create(courseData);
+  
+  //   return updatedOrders;
   // }
+  // Dans votre CourseService
+
 
   async assignOrdersToDriver(
-    orderIds: string[], 
-    driverId: string, 
+    orderIds: string[],
+    driverId: string,
     currentUserId: string
   ): Promise<Order[]> {
     const isValidRole = await this.validateRole(currentUserId, [Role.ADMIN, Role.ADMIN_ASSISTANT]);
     if (!isValidRole) {
       throw new ForbiddenException('Only ADMIN or AdminAssistant can assign orders to drivers.');
-    }
-    
-    if (!isValidObjectId(currentUserId)) {
-      throw new BadRequestException('Invalid user ID');
     }
   
     const user = await this.userCacheService.getUserById(currentUserId);
@@ -141,72 +199,121 @@ export class OrderService {
     }
   
     const assignDate = new Date();
-  //nbr des ordres pour driver
-    const ordersOnSameDate = await this.orderModel.find({
+    const todayStart = new Date(assignDate);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(assignDate);
+    todayEnd.setHours(23, 59, 59, 999);
+  
+    // 1. Get orders already assigned directly
+    const existingDirectOrders = await this.orderModel.find({
       driverId,
-      dateAssignation: { 
-        $gte: new Date(assignDate.setHours(0, 0, 0, 0)), 
-        $lt: new Date(assignDate.setHours(23, 59, 59, 999)) 
+      dateAssignation: { $gte: todayStart, $lte: todayEnd },
+      status: {
+        $in: [
+          OrderStatus.ASSIGNED,
+          OrderStatus.OUT_FOR_DELIVERY,
+          OrderStatus.FOLLOW_UP,
+        ],
       },
-      status: { $in: [OrderStatus.RELANCE, OrderStatus.EN_COURS_LIVRAISON] }
     });
   
-    if (ordersOnSameDate.length + orderIds.length > 10) {
-      throw new ForbiddenException('Driver already has 10 or more orders with status RELANCE or EN_COURS_LIVRAISON for this date.');
+    // 2. Get existing courses with orders
+    const existingCourses = await this.courseService.findCoursesByDriverAndDate(driverId, todayStart, todayEnd);
+    await Promise.all(existingCourses.map(c => c.populate('orderIds')));
+  
+    const alreadyAssignedOrderIds = new Set<string>();
+    existingDirectOrders.forEach(order => alreadyAssignedOrderIds.add(order._id.toString()));
+    existingCourses.forEach(course => {
+      if (Array.isArray(course.orderIds)) {
+        course.orderIds.forEach((order: any) => {
+          const id = order?._id?.toString() || order?.toString();
+          if (id) alreadyAssignedOrderIds.add(id);
+        });
+      }
+    });
+  
+    // 3. Vérification de doublon
+    const duplicateOrders = orderIds.filter(id => alreadyAssignedOrderIds.has(id));
+    if (duplicateOrders.length > 0) {
+      throw new ForbiddenException(
+        `Les ordres suivants sont déjà assignés à ce livreur aujourd'hui : ${duplicateOrders.join(', ')}`
+      );
     }
   
-    const updatedOrders: Order[] = [];
-    for (const orderId of orderIds) {
-      const existingOrder = await this.orderModel.findById(orderId).exec();
-      if (!existingOrder) {
-        throw new NotFoundException(`Order with ID ${orderId} not found.`);
-      }
+    // 4. Vérifier la capacité
+    const totalExisting = alreadyAssignedOrderIds.size;
+    if (totalExisting + orderIds.length > 10) {
+      const remaining = 10 - totalExisting;
+      throw new ForbiddenException(
+        `Driver already has ${totalExisting} orders assigned today. ` +
+        `You can only assign up to ${remaining} more orders.`
+      );
+    }
   
+    // 5. Vérifier les ordres à assigner
+    const ordersToAssign = await this.orderModel.find({ _id: { $in: orderIds } }).exec();
+    if (ordersToAssign.length !== orderIds.length) {
+      throw new NotFoundException('One or more orders not found');
+    }
+  
+    // 6. Assigner les ordres
+    const updatedOrders: Order[] = [];
+    for (const order of ordersToAssign) {
       const updatedOrder = await this.orderModel.findByIdAndUpdate(
-        orderId,
-        { 
-          driverId, 
-          status: OrderStatus.ASSIGNE, 
-          dateAssignation: assignDate 
+        order._id,
+        {
+          driverId,
+          status: OrderStatus.ASSIGNED,
+          dateAssignation: assignDate,
         },
         { new: true }
       ).exec();
   
-      updatedOrders.push(updatedOrder as Order);
+      if (updatedOrder) {
+        updatedOrders.push(updatedOrder);
   
-      const historyInput: CreateHistoryInput = {
-        orderId,
-        event: 'ORDER_ASSIGNED',
-        etatPrecedent: existingOrder.status,
-        driverId, 
-      };
+        const historyInput: CreateHistoryInput = {
+          orderId: order._id.toString(),
+          event: 'ORDER_ASSIGNED',
+          etatPrecedent: order.status,
+          driverId,
+          ...(user.role === Role.ADMIN ? { adminId: currentUserId } : {}),
+          ...(user.role === Role.ADMIN_ASSISTANT ? { assisatnAdminId: currentUserId } : {}),
+        };
   
-      if (user.role === Role.ADMIN) {
-        historyInput.adminId = currentUserId;
-      } else if (user.role === Role.ADMIN_ASSISTANT) {
-        historyInput.assisatnAdminId = currentUserId;
+        await this.historyService.create(historyInput);
       }
-  
-      await this.historyService.create(historyInput);
     }
   
-    const courseData: CreateCourseInput = {
-      orderIds,
-      driverId,
-      status: OrderStatus.ASSIGNE,
-      adminId: user.role === Role.ADMIN ? currentUserId : undefined,
-      assistantId: user.role === Role.ADMIN_ASSISTANT ? currentUserId : undefined,
-    };
+    // 7. Mise à jour ou création de la course
+    if (updatedOrders.length > 0) {
+      const existingCourse = existingCourses[0];
   
-    if (!courseData.orderIds || courseData.orderIds.length < 1 || courseData.orderIds.length > 10) {
-      throw new BadRequestException('A course must have between 1 and 10 orders.');
+      if (existingCourse) {
+        const existingOrderIds = Array.isArray(existingCourse.orderIds)
+        ? existingCourse.orderIds.map((o: any) => o._id?.toString() || o.toString())
+        : [];
+      
+      const newOrderIds = [...new Set([...existingOrderIds, ...updatedOrders.map(o => o._id.toString())])];
+      
+  
+        await this.courseService.update(existingCourse._id, { orderIds: newOrderIds });
+      } else {
+        // Créer une nouvelle course si aucune n'existe
+        const courseData: CreateCourseInput = {
+          orderIds: updatedOrders.map(o => o._id.toString()),
+          driverId,
+          status: OrderStatus.ASSIGNED,
+          adminId: user.role === Role.ADMIN ? currentUserId : undefined,
+          assistantId: user.role === Role.ADMIN_ASSISTANT ? currentUserId : undefined,
+        };
+  
+        await this.courseService.create(courseData);
+      }
     }
-  
-    await this.courseService.create(courseData);
   
     return updatedOrders;
   }
-  
   
   
   async updateOrderStatus(
@@ -229,7 +336,7 @@ export class OrderService {
     }
     const userRole = user.role;
   
-    if ([OrderStatus.ASSIGNE, OrderStatus.EN_COURS_LIVRAISON, OrderStatus.LIVRE].includes(status)) {
+    if ([OrderStatus.ASSIGNED, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED].includes(status)) {
       const isAdmin = userRole === Role.ADMIN;
       if (!isAdmin && order.driverId !== userId) {
         throw new ForbiddenException('You are not authorized to update this order.');
@@ -290,7 +397,7 @@ export class OrderService {
     }
 
     const updateData: any = { 
-        status: OrderStatus.EN_ATTENTE_RESOLUTION,
+        status: OrderStatus.PENDING_RESOLUTION,
         incidentReportedAt: new Date()
     };
 
@@ -335,6 +442,21 @@ export class OrderService {
     return updatedOrder;
 }
 
+
+async getAllOrdersWithIncidents(): Promise<Order[]> {
+  try {
+    const ordersWithIncidents = await this.orderModel.find({
+      incidentDescription: { $exists: true, $ne: null }
+    }).exec();
+
+    return ordersWithIncidents;
+  } catch (error) {
+    console.error('Erreur lors de la récupération des commandes avec incidents:', error);
+    throw new InternalServerErrorException('Erreur lors de la récupération des incidents.');
+  }
+}
+
+
   async remove(id: string): Promise<Order> {
     const deletedOrder = await this.orderModel
       .findByIdAndUpdate(id, { deletedAt: new Date() }, { new: true })
@@ -363,6 +485,18 @@ export class OrderService {
     return order;
     }
 
+    async getOrdersByPartnerId(partnerId: string): Promise<Order[]> {
+   
+    
+      return this.orderModel.find({ partnerId: partnerId, deletedAt: null }).exec();
+    }
+
+    async getOrdersByClient(clientId: string): Promise<Order[]> {
+   
+    
+      return this.orderModel.find({ clientId: clientId, deletedAt: null }).exec();
+    }
+
     // Enregistrer  tentative d'order
     async recordDeliveryAttempt(orderId: string, userId: string): Promise<Order> {
       const order = await this.orderModel.findById(orderId).exec();
@@ -381,7 +515,7 @@ export class OrderService {
       order.attemptCount = previousAttemptCount + 1;
   
       if (order.attemptCount === 1) {
-          order.status = OrderStatus.RELANCE;
+          order.status = OrderStatus.FOLLOW_UP;
       } else if (order.attemptCount === 3) {
           order.status = OrderStatus.VERIFICATION;
       }
@@ -452,5 +586,79 @@ export class OrderService {
     await this.historyService.create(historyInput);
   
     return updatedOrder;
+  }
+
+  async getOrdersCountByStatus(): Promise<{ status: string; count: number }[]> {
+    try {
+      const result = await this.orderModel.aggregate([
+        { 
+          $match: { 
+            deletedAt: null // Exclure les commandes supprimées
+          } 
+        },
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $project: {
+            status: "$_id",
+            count: 1,
+            _id: 0
+          }
+        },
+        {
+          $sort: { count: -1 } // Tri décroissant par nombre de commandes
+        }
+      ]).exec();
+  
+      // Si vous voulez inclure tous les statuts possibles même avec 0 commandes
+      const allStatuses = Object.values(OrderStatus);
+      const statusCounts = allStatuses.map(status => {
+        const found = result.find(item => item.status === status);
+        return {
+          status,
+          count: found ? found.count : 0
+        };
+      });
+  
+      return statusCounts;
+    } catch (error) {
+      console.error('Erreur lors du comptage des commandes par statut:', error);
+      throw new InternalServerErrorException('Failed to get orders count by status');
+    }
+  }
+
+  async countOrdersByPartnerIdAndStatus(partnerId: string): Promise<{ status: string; count: number }[]> {
+    try {
+      const results = await this.orderModel.aggregate([
+        { 
+          $match: { 
+            partnerId: partnerId,
+            deletedAt: null 
+          } 
+        },
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $project: {
+            status: "$_id",
+            count: 1,
+            _id: 0
+          }
+        }
+      ]).exec();
+  
+      return results;
+    } catch (error) {
+      console.error(`Error counting orders by status for partner ${partnerId}:`, error);
+      throw new InternalServerErrorException('Failed to count orders by status');
+    }
   }
 }

@@ -12,6 +12,7 @@ import { RabbitMQModule } from './RabbitMq/rabbitmq.module';
 import { HistoryModule } from './history/history.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { CourseModule } from './course/course.module';
+import { IncidentModule } from './incident/incident.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { CourseModule } from './course/course.module';
     HistoryModule,
     TrackingModule,
     CourseModule,
+    IncidentModule
   ],
 })
 export class AppModule {}

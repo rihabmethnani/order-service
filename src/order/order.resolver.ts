@@ -8,6 +8,7 @@ import { Role } from '@/shared/enums/role.enum';
 import { ReportIncidentInput } from './dto/report.incident.input';
 import { OrderStatus } from '@/shared/order.status.enum';
 import { isValidObjectId } from 'mongoose';
+import { OrderStatusCount } from './entities/orderStatusCount.entity';
 
 @Resolver(() => Order)
 export class OrderResolver {
@@ -75,6 +76,39 @@ export class OrderResolver {
     return this.orderService.findOne(id);
   }
 
+  @Query(() => [OrderStatusCount]) 
+  async countByPartner(@Args('id') partnerId: string) {
+    return this.orderService.countOrdersByPartnerIdAndStatus(partnerId);
+  }
+
+  @Query(() => [Order])
+  async getOrdersByPartnerId(
+    @Args('partnerId') partnerId: string,
+    @CurrentUser() user: any,
+  ): Promise<Order[]> {
+    if (user.role === Role.PARTNER && user._id !== partnerId) {
+      throw new ForbiddenException('You can only access your own orders.');
+    }
+  
+    if (![Role.ADMIN, Role.PARTNER].includes(user.role)) {
+      throw new ForbiddenException('Unauthorized.');
+    }
+  
+    return this.orderService.getOrdersByPartnerId(partnerId);
+  }
+  
+
+  @Query(() => [Order])
+  async getOrdersByClient(
+    @Args('clientId') clientId: string,
+    @CurrentUser() user: any,
+  ): Promise<Order[]> {
+   
+
+    return this.orderService.getOrdersByClient(clientId);
+  }
+
+
   @Mutation(() => Order)
   async removeOrder(@Args('id') id: string): Promise<Order> {
     return this.orderService.remove(id);
@@ -125,4 +159,14 @@ export class OrderResolver {
 
     return this.orderService.reportVerificationIncident(orderId, incidentType,user._id);
   }
+
+  @Query(() => [Order])
+  async getOrdersByIncident() {
+    return await this.orderService.getAllOrdersWithIncidents();
+  }
+
+  @Query(() => [OrderStatusCount])
+async getOrdersCountByStatus() {
+  return this.orderService.getOrdersCountByStatus();
+}
 }
