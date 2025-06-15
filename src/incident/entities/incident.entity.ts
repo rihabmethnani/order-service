@@ -5,44 +5,44 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
 export enum IncidentStatus {
-    OPEN= 'Open',
-    IN_PROGRESS= 'In Progress',
-    RESOLVED= 'Resolved',
-    CANCELLED= 'Cancelled',
+  OPEN = "Ouvert",
+  IN_PROGRESS = "En Cours",
+  RESOLVED = "Résolu",
+  CANCELLED = "Annulé",
 }
 
 registerEnumType(IncidentStatus, {
-  name: 'IncidentStatus',
-  description: 'Incident status enum',
-});
+  name: "IncidentStatus",
+  description: "Énumération des statuts d'incident",
+})
 
 export enum IncidentPriority {
-    LOW= "Low",
-    MEDIUM= "Medium",
-    HIGH= "High",
-    CRITICAL= "Critical",
+  LOW = "Faible",
+  MEDIUM = "Moyenne",
+  HIGH = "Élevée",
+  CRITICAL = "Critique",
 }
-
-// Enums existants
-export enum incidentType {
-    DAMAGED_PACKAGE= "Damaged Package",
-    INCORRECT_ADDRESS= "Incorrect Address",
-    CUSTOMER_NOT_FOUND= "Customer Not Found",
-    LOST_PACKAGE= "Lost Package",
-    WEATHER_DELAY= "Weather Delay",
-    TRAFFIC_DELAY= "Traffic Delay",
-    REFUSED_PACKAGE= "Refused Package",
-    OTHER= "Other",
-}
-registerEnumType(incidentType, {
-    name: 'incidentType',
-    description: 'Incident type enum',
-  });
 
 registerEnumType(IncidentPriority, {
-  name: 'IncidentPriority',
-  description: 'Incident priority enum',
-});
+  name: "IncidentPriority",
+  description: "Énumération des priorités d'incident",
+})
+
+export enum incidentType {
+  DAMAGED_PACKAGE = "Colis Endommagé",
+  INCORRECT_ADDRESS = "Adresse Incorrecte",
+  CUSTOMER_NOT_FOUND = "Client Introuvable",
+  LOST_PACKAGE = "Colis Perdu",
+  WEATHER_DELAY = "Retard Météorologique",
+  TRAFFIC_DELAY = "Retard de Circulation",
+  REFUSED_PACKAGE = "Colis Refusé",
+  OTHER = "Autre",
+}
+
+registerEnumType(incidentType, {
+  name: "IncidentType",
+  description: "Énumération des types d'incident",
+})
 
 @ObjectType()
 @Schema({ timestamps: true })
@@ -50,9 +50,13 @@ export class Incident extends Document {
   @Field(() => ID)
   declare _id: string;
 
-  @Field(() => Order)
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Order', required: true })
-  orderId?: Order | Types.ObjectId;
+  @Field()
+  @Prop()
+  orderId?: string;
+
+  @Field({ nullable: true })
+  @Prop()
+  partnerId?: string
 
   @Field()
   @Prop()
@@ -91,6 +95,9 @@ export class Incident extends Document {
   })
   priority?: IncidentPriority;
 
+
+
+
   @Field(() => [CommentInfo], { nullable: true })
   @Prop({
     type: [
@@ -104,7 +111,7 @@ export class Incident extends Document {
   })
   comments?: { comment: string; userId: User | Types.ObjectId; createdAt: Date }[];
 
-  @Field()
+  @Field({ nullable: true })
   @Prop()
   resolvedBy?: String
 
@@ -121,6 +128,22 @@ export class Incident extends Document {
 
   @Field()
   updatedAt?: Date;
+
+    isOverdue(hoursThreshold = 24): boolean {
+  if (!this.createdAt) {
+    return false; // ou throw une erreur, selon ton cas
+  }
+
+  const now = new Date();
+  const createdTime = this.createdAt.getTime();
+  const hoursDiff = (now.getTime() - createdTime) / (1000 * 60 * 60);
+
+  return (
+    this.status !== IncidentStatus.RESOLVED &&
+    this.status !== IncidentStatus.CANCELLED &&
+    hoursDiff > hoursThreshold
+  );
+}
 }
 
 @ObjectType()

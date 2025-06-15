@@ -9,6 +9,11 @@ export class CreateIncidentInput {
   @IsString()
   orderId?: string;
 
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  partnerId?: string;
+
   @Field(() => incidentType, { nullable: true })
   @IsOptional()
   @IsString()

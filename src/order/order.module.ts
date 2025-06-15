@@ -9,6 +9,7 @@ import { RabbitMQConsumer } from '../RabbitMq/rabbitmq.consumer'; // Utilisez le
 import { CourseService } from '../course/course.service'; // Utilisez le chemin relatif approprié
 import { Order, OrderSchema } from './entities/order.entity/order.entity';
 import { CourseModule } from '@/course/course.module';
+import { RouteOptimizationModule } from '@/route-optimization/route-optimization.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { CourseModule } from '@/course/course.module';
     RabbitMQModule,
     HistoryModule,
     CourseModule,
+    RouteOptimizationModule
   ],
   providers: [
     OrderResolver,

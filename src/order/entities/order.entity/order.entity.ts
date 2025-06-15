@@ -68,7 +68,7 @@ export class Order extends Document {
   declare _id: string;
 
   @Field(() => OrderStatus)
-  @Prop({ enum: OrderStatus, default: OrderStatus.PENDING })
+  @Prop({ enum: OrderStatus, default: OrderStatus.EN_ATTENTE })
   status?: OrderStatus;
 
   @Field({ nullable: true })

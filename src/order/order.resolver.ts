@@ -9,6 +9,7 @@ import { ReportIncidentInput } from './dto/report.incident.input';
 import { OrderStatus } from '@/shared/order.status.enum';
 import { isValidObjectId } from 'mongoose';
 import { OrderStatusCount } from './entities/orderStatusCount.entity';
+import { CoordinatesInput } from '@/course/entities/course.entity';
 
 @Resolver(() => Order)
 export class OrderResolver {
@@ -28,19 +29,7 @@ export class OrderResolver {
     return this.orderService.create(createOrderInput, user._id);
   }
 
-  // @Mutation(() => Order)
-  // async assignOrderToDriver(
-  //   @Args('orderId') orderId: string,
-  //   @Args('driverId') driverId: string,
-  //   @CurrentUser() user: any,
-  // ): Promise<Order> {
-  //   if (!user || user.role !== Role.ADMIN) {
-  //     throw new ForbiddenException('Only ADMIN can assign orders to drivers.');
-  //   }
-
-  //   return this.orderService.assignOrderToDriver(orderId, driverId, user._id);
-  // }
-
+ 
   @Mutation(() => [Order])
   async assignOrdersToDriver(
     @Args('orderIds', { type: () => [String] }) orderIds: string[],
@@ -169,4 +158,35 @@ export class OrderResolver {
 async getOrdersCountByStatus() {
   return this.orderService.getOrdersCountByStatus();
 }
+
+
+@Mutation(() => [Order])
+  async assignOrdersToDriverOptimized(
+    @Args('orderIds', { type: () => [String] }) orderIds: string[],
+    @Args('driverId') driverId: string,
+    @Args('pointDepart', { nullable: true }) pointDepart: CoordinatesInput,
+    @CurrentUser() user: any,
+  ): Promise<Order[]> {
+    const currentUserId = user._id
+    const validPointDepart = pointDepart?.lat !== undefined && pointDepart?.lng !== undefined
+    ? { lat: pointDepart.lat, lng: pointDepart.lng }
+    : undefined;
+    const updatedOrders = await this.orderService.assignOrdersToDriverOptimized(
+      orderIds,
+      driverId,
+      currentUserId,
+      validPointDepart,
+    )
+
+    return updatedOrders
+  }
+
+
+@Query(() => [Order])
+async getOrdersByResponsibilityZone(@CurrentUser() user: any): Promise<Order[]> {
+  return this.orderService.getOrdersByResponsibilityZone(user._id);
+}
+
+
+
 }

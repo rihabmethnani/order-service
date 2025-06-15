@@ -2,12 +2,13 @@ import { InputType, Field, PartialType } from '@nestjs/graphql';
 import { IsOptional } from 'class-validator';
 import { CreateCourseInput } from './create.course.input';
 import { OrderStatus } from '@/shared/order.status.enum';
+import { CoordinatesInput } from '../entities/course.entity';
 
 @InputType()
 export class UpdateCourseInput extends PartialType(CreateCourseInput) {
-  @Field({ nullable: true })
+ @Field(() => CoordinatesInput, { nullable: true })
   @IsOptional()
-  pointDepart?: string;
+  pointDepart?: CoordinatesInput;
 
   @Field(() => [String], { nullable: true })
   @IsOptional()

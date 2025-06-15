@@ -2,10 +2,10 @@ import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
 import { IncidentService } from './incident.service';
 import { Incident } from './entities/incident.entity';
 import { CurrentUser } from '../decorators/current-user.decorator';
-import { IncidentStatsType } from './entities/incident.stats.entity';
 import { CreateIncidentInput } from './dto/createIncident.input';
 import { UpdateIncidentInput } from './dto/updateIncident.input';
 import { FilterIncidentInput } from './dto/filter-incident.input';
+import { IncidentStatsType } from './entities/incident.stats.entity';
 
 
 @Resolver(() => Incident)
@@ -36,14 +36,12 @@ export class IncidentResolver {
   ): Promise<Incident[]> {
     return this.incidentService.getIncidentsByOrderId(orderId);
   }
-
-//  @Query(() => [Incident])
-// async getAllIncidents(
-//   @Args('filters', { type: () => FilterIncidentInput, nullable: true }) filters?: FilterIncidentInput,
-// ): Promise<Incident[]> {
-//   return this.incidentService.getAllIncidents(filters);
-// }
-
+@Query(() => [Incident])
+async getAllIncidents(
+  @Args('filters', { type: () => FilterIncidentInput, nullable: true }) filters?: FilterIncidentInput,
+): Promise<Incident[]> {
+  return this.incidentService.getAllIncidents(filters);
+}
 
   @Query(() => [Incident])
     async getAll() {
@@ -61,4 +59,20 @@ export class IncidentResolver {
   async getIncidentStats(): Promise<any> {
     return this.incidentService.getIncidentStats();
   }
+
+  @Query(() => IncidentStatsType)
+  async getIncidentStatsByPartnerId(
+     @CurrentUser() user: any,
+  ): Promise<any> {
+    return this.incidentService.getIncidentStatsByPartnerId(user._id);
+  }
+
+@Query(() => [Incident])
+async getIncidentsByPartnerId(
+  @CurrentUser() user: any,
+): Promise<Incident[]> {
+  return this.incidentService.getIncidentsByPartnerId(user._id);
+}
+
+
 }

@@ -1,6 +1,7 @@
 import { OrderStatus } from '@/shared/order.status.enum';
 import { InputType, Field } from '@nestjs/graphql';
 import { IsEnum, IsNotEmpty, IsNumber, IsDateString, IsArray, ArrayMaxSize, IsString } from 'class-validator';
+import { CoordinatesInput } from '../entities/course.entity';
 
 @InputType()
 export class CreateCourseInput {
@@ -23,8 +24,10 @@ export class CreateCourseInput {
   @IsEnum(OrderStatus)
   status?: OrderStatus;
 
-  @Field()
-  pointDepart?: string;
+ 
+  @Field(() => CoordinatesInput, { nullable: true })
+  pointDepart?: CoordinatesInput;
+  
 
   @Field(() => [String])
   pointArrivee?: string[];

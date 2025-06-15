@@ -15,12 +15,10 @@ async function bootstrap() {
   //await rabbitMQConsumer.init();
   app.useGlobalGuards(new JwtAuthGuard());
   // Activez CORS avec une configuration spécifique
-  app.enableCors({
-    origin: 'http://localhost:3000', // Autorise uniquement le frontend
-    methods: ['GET', 'POST', 'PUT', 'DELETE'], // Méthodes HTTP autorisées
-    allowedHeaders: ['Content-Type', 'Authorization'], // Headers autorisés
-    credentials: true, // Autorise les cookies ou les tokens d'authentification
+   app.enableCors({
+    origin: '*', // ou spécifiez l’origine exacte
+    credentials: true,
   });
-  await app.listen(process.env.PORT ?? 3001);
+  await app.listen(process.env.PORT ?? 3001,'0.0.0.0');
 }
 bootstrap();

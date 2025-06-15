@@ -160,6 +160,11 @@ export class UserCacheService implements OnModuleInit, OnModuleDestroy {
           name
           email
           role
+          zoneResponsabilite
+          address
+          city
+          postalCode
+          region
         }
       }
     `;

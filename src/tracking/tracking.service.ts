@@ -1,154 +1,219 @@
-// src/tracking/tracking.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { HttpService } from '@nestjs/axios';
-import { lastValueFrom } from 'rxjs';
-import { DriverLocation } from './entities/driver-location.entity';
-import { UpdateDriverLocationInput } from './dto/update-driver-location.input';
-import { GeoJSON } from './dto/geojson.type';
-import { Route } from './dto/route.type';
-import { AxiosError } from 'axios';
+import { forwardRef, Inject, Injectable } from "@nestjs/common"
+import type { Model } from "mongoose"
+import { DriverLocation, DriverLocationDocument } from "./entities/driver-location.entity"
+import { TrackingGateway } from "./tracking.gateway"
+import { InjectModel } from "@nestjs/mongoose"
+
+export interface LocationUpdate {
+  driverId: string
+  courseId?: string
+  latitude: number
+  longitude: number
+  accuracy?: number
+  speed?: number
+  heading?: number
+  status?: string
+}
 
 @Injectable()
 export class TrackingService {
   constructor(
-    @InjectModel('DriverLocation') private readonly driverLocationModel: Model<DriverLocation>,
-    private readonly httpService: HttpService,
-  ) {}
+    @InjectModel(DriverLocation.name)
+    private readonly driverLocationModel: Model<DriverLocationDocument>,
+  @Inject(forwardRef(() => TrackingGateway))
+    private readonly trackingGateway: TrackingGateway,  ) {}
 
   /**
-   * Enregistre la position GPS d'un chauffeur.
+   * Met à jour la position d'un livreur
    */
-  async updateDriverLocation(update: UpdateDriverLocationInput): Promise<void> {
+  async updateDriverLocation(locationData: LocationUpdate): Promise<DriverLocation> {
+    console.log(`Updating location for driver ${locationData.driverId}:`, locationData)
+
+    // Créer une nouvelle entrée de localisation
     const location = new this.driverLocationModel({
-      driverId: update.driverId,
-      latitude: update.latitude,
-      longitude: update.longitude,
+      ...locationData,
       timestamp: new Date(),
-    });
-    await location.save();
+    })
+
+    const savedLocation = await location.save()
+
+    // Émettre la mise à jour en temps réel via WebSocket
+    this.trackingGateway.emitLocationUpdate(savedLocation)
+
+    // Nettoyer les anciennes positions (garder seulement les 100 dernières par driver)
+    await this.cleanupOldLocations(locationData.driverId)
+
+    console.log(`Location updated for driver ${locationData.driverId}`)
+    return savedLocation
   }
 
   /**
-   * Récupère la position en temps réel d'un chauffeur.
+   * Récupère la dernière position d'un livreur
    */
-  async getDriverLocation(driverId: string): Promise<{ latitude: number; longitude: number }> {
+  async getDriverCurrentLocation(driverId: string): Promise<DriverLocation | null> {
+    const location = await this.driverLocationModel.findOne({ driverId }).sort({ timestamp: -1 }).limit(1).exec()
+
+    return location
+  }
+
+  /**
+   * Récupère la dernière position d'un livreur pour une course spécifique
+   */
+  async getDriverLocationForCourse(driverId: string, courseId: string): Promise<DriverLocation | null> {
     const location = await this.driverLocationModel
-      .findOne({ driverId })
-      .sort({ timestamp: -1 }) // Récupère la position la plus récente
-      .exec();
-  
-    if (!location || location.latitude === undefined || location.longitude === undefined) {
-      throw new NotFoundException(`No valid location found for driver with ID ${driverId}`);
-    }
-  
-    return { latitude: location.latitude, longitude: location.longitude };
+      .findOne({ driverId, courseId })
+      .sort({ timestamp: -1 })
+      .limit(1)
+      .exec()
+
+    return location
   }
 
   /**
-   * Convertit une adresse en coordonnées GPS (latitude, longitude).
+   * Récupère l'historique des positions d'un livreur
    */
-  async getCoordinatesFromAddress(address: string): Promise<{ latitude: number; longitude: number }> {
-    const encodedAddress = encodeURIComponent(address);
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodedAddress}&format=json`;
-
-    try {
-      const response = await lastValueFrom(this.httpService.get(url));
-      const data = response.data;
-
-      if (!data || data.length === 0) {
-        throw new NotFoundException('No coordinates found for the given address.');
-      }
-
-      const { lat, lon } = data[0];
-      return { latitude: parseFloat(lat), longitude: parseFloat(lon) };
-    } catch (error) {
-      console.error('Error fetching coordinates:', error);
-      throw new NotFoundException('Unable to retrieve coordinates for the given address.');
-    }
-  }
-
-  /**
-   * Convertit des coordonnées GPS (latitude, longitude) en une adresse.
-   */
-  async getAddressFromCoordinates(
-    latitude: number,
-    longitude: number,
-  ): Promise<string> {
-    const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`;
-
-    try {
-      const response = await lastValueFrom(this.httpService.get(url));
-      const data = response.data;
-
-      if (!data || !data.display_name) {
-        throw new NotFoundException('No address found for the given coordinates.');
-      }
-
-      return data.display_name;
-    } catch (error) {
-      console.error('Error fetching address:', error);
-      throw new NotFoundException('Unable to retrieve address for the given coordinates.');
-    }
-  }
-
-  async calculateOptimalRoute(
+  async getDriverLocationHistory(
     driverId: string,
-    destinationLatitude: number,
-    destinationLongitude: number,
-  ): Promise<Route> {
-    // Récupérer la dernière position connue du driver
-    const existingLocation: DriverLocation | null = await this.driverLocationModel
-      .findOne({ driverId })
-      .sort({ createdAt: -1 });
-  
-    if (!existingLocation) {
-      throw new NotFoundException('Driver location not found.');
+    startTime?: Date,
+    endTime?: Date,
+    limit = 100,
+  ): Promise<DriverLocation[]> {
+    const query: any = { driverId }
+
+    if (startTime || endTime) {
+      query.timestamp = {}
+      if (startTime) query.timestamp.$gte = startTime
+      if (endTime) query.timestamp.$lte = endTime
     }
-  
-    const originLatitude = existingLocation.latitude;
-    const originLongitude = existingLocation.longitude;
-  
-    // URL pour calcul de l'itinéraire
-    const url = `https://router.project-osrm.org/route/v1/driving/${originLongitude},${originLatitude};${destinationLongitude},${destinationLatitude}?overview=full&geometries=geojson`;
-  
-    try {
-      const response = await lastValueFrom(this.httpService.get(url));
-      const data = response.data;
-  
-      if (!data || !data.routes || data.routes.length === 0) {
-        throw new NotFoundException('Unable to calculate the optimal route.');
-      }
-  
-      const route = data.routes[0];
-  
-      const optimalRoute: Route = {
-        distance: route.distance,
-        duration: route.duration,
-        geometry: route.geometry,
-      };
-  
-      // Mettre à jour les données existantes
-      existingLocation.latitude = originLatitude;
-      existingLocation.longitude = originLongitude;
-      existingLocation.timestamp = new Date();
-      existingLocation.optimalRoute = optimalRoute;
-  
-      await existingLocation.save();
-  
-      return optimalRoute;
-    } catch (error) {
-      const axiosError = error as AxiosError;
-  
-      console.error(
-        'Error fetching route:',
-        axiosError.response?.data || axiosError.message || error,
-      );
-  
-      throw new NotFoundException('Unable to calculate the optimal route.');
+
+    return this.driverLocationModel.find(query).sort({ timestamp: -1 }).limit(limit).exec()
+  }
+
+  /**
+   * Récupère les positions de tous les livreurs actifs
+   */
+  async getAllActiveDriversLocations(): Promise<DriverLocation[]> {
+    // Considérer un livreur comme actif s'il a envoyé sa position dans les 5 dernières minutes
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
+
+    // Utiliser l'agrégation pour récupérer la dernière position de chaque livreur
+    const locations = await this.driverLocationModel.aggregate([
+      {
+        $match: {
+          timestamp: { $gte: fiveMinutesAgo },
+        },
+      },
+      {
+        $sort: { timestamp: -1 },
+      },
+      {
+        $group: {
+          _id: "$driverId",
+          latestLocation: { $first: "$$ROOT" },
+        },
+      },
+      {
+        $replaceRoot: { newRoot: "$latestLocation" },
+      },
+    ])
+
+    return locations
+  }
+
+  /**
+   * Met à jour le statut d'un livreur
+   */
+  async updateDriverStatus(driverId: string, status: string, courseId?: string): Promise<void> {
+    const currentLocation = await this.getDriverCurrentLocation(driverId)
+
+    if (currentLocation) {
+      await this.updateDriverLocation({
+        driverId,
+        courseId: courseId || currentLocation.courseId,
+        latitude: currentLocation.latitude ?? 0,
+        longitude: currentLocation.longitude ?? 0,
+        accuracy: currentLocation.accuracy,
+        speed: currentLocation.speed,
+        heading: currentLocation.heading,
+        status,
+      })
     }
   }
-  
-  
+
+  /**
+   * Démarre le tracking pour une course
+   */
+  async startCourseTracking(driverId: string, courseId: string): Promise<void> {
+    console.log(`Starting course tracking for driver ${driverId}, course ${courseId}`)
+    await this.updateDriverStatus(driverId, "delivering", courseId)
+  }
+
+  /**
+   * Arrête le tracking pour une course
+   */
+  async stopCourseTracking(driverId: string): Promise<void> {
+    console.log(`Stopping course tracking for driver ${driverId}`)
+    await this.updateDriverStatus(driverId, "inactive")
+  }
+
+  /**
+   * Nettoie les anciennes positions pour éviter l'accumulation
+   */
+  private async cleanupOldLocations(driverId: string): Promise<void> {
+    const locations = await this.driverLocationModel
+      .find({ driverId })
+      .sort({ timestamp: -1 })
+      .skip(100) // Garder les 100 dernières
+      .select("_id")
+      .exec()
+
+    if (locations.length > 0) {
+      const idsToDelete = locations.map((loc) => loc._id)
+      await this.driverLocationModel.deleteMany({ _id: { $in: idsToDelete } })
+      console.log(`Cleaned up ${idsToDelete.length} old locations for driver ${driverId}`)
+    }
+  }
+
+  /**
+   * Calcule la distance parcourue par un livreur
+   */
+  async calculateDistanceTraveled(driverId: string, startTime: Date, endTime: Date): Promise<number> {
+    const locations = await this.getDriverLocationHistory(driverId, startTime, endTime, 1000)
+
+    if (locations.length < 2) return 0
+
+    let totalDistance = 0
+    for (let i = 1; i < locations.length; i++) {
+      const prev = locations[i]
+      const curr = locations[i - 1]
+
+      const distance = this.calculateHaversineDistance(
+        { lat: prev.latitude ?? 0, lng: prev.longitude ?? 0 },
+        { lat: curr.latitude ?? 0, lng: curr.longitude ?? 0 },
+      )
+
+      totalDistance += distance
+    }
+
+    return totalDistance
+  }
+
+  /**
+   * Calcule la distance entre deux points
+   */
+  private calculateHaversineDistance(
+    point1: { lat: number; lng: number },
+    point2: { lat: number; lng: number },
+  ): number {
+    const R = 6371000 // Rayon de la Terre en mètres
+    const φ1 = (point1.lat * Math.PI) / 180
+    const φ2 = (point2.lat * Math.PI) / 180
+    const Δφ = ((point2.lat - point1.lat) * Math.PI) / 180
+    const Δλ = ((point2.lng - point1.lng) * Math.PI) / 180
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+    return R * c
+  }
 }

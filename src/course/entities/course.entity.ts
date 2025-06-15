@@ -1,7 +1,19 @@
 import { OrderStatus } from '@/shared/order.status.enum';
-import { Field, ID, ObjectType } from '@nestjs/graphql';
+import { Coordinates } from '@/tracking/dto/coordinates.type';
+import { Field, ID, InputType, ObjectType } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+
+
+@InputType()
+export class CoordinatesInput {
+  @Field(() => Number)
+  lat!: number;
+
+  @Field(() => Number)
+  lng!: number;
+}
+
 
 @ObjectType()
 @Schema({ timestamps: true })
@@ -29,9 +41,9 @@ export class Course extends Document {
   @Prop({ type: String, enum: OrderStatus, required: true })
   status?: OrderStatus;
 
-  @Field()
-  @Prop()
-  pointDepart?: string;
+   @Field(() => Coordinates, { nullable: true })
+  @Prop({ type: { lat: Number, lng: Number }, required: false })
+  pointDepart?: { lat: number; lng: number };
 
   @Field(() => [String])
   @Prop()
@@ -52,6 +64,15 @@ export class Course extends Document {
   @Field(() => Date)
   @Prop()
   dateArrivee?: Date;
+
+ @Field(() => [Coordinates], { nullable: true })
+  @Prop({ type: [{ lat: Number, lng: Number }] })
+  route?: { lat: number; lng: number }[]
+
+  
+  @Field(() => [Coordinates], { nullable: true })
+  @Prop({ type: [{ lat: Number, lng: Number }] })
+  detailedRoute?: { lat: number; lng: number }[]
 
   @Field(() => Date)
   createdAt?: Date;

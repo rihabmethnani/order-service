@@ -1,28 +1,34 @@
-import { ObjectType, Field, Int } from '@nestjs/graphql';
+import { ObjectType, Field, Int } from "@nestjs/graphql"
 
 @ObjectType()
 export class IncidentTypeCount {
   @Field()
- declare _id: string;
+  declare _id: string
 
   @Field(() => Int)
-  count?: number;
+  count?: number
 }
 
 @ObjectType()
 export class IncidentStatsType {
   @Field(() => Int)
-  totalIncidents?: number;
+  totalIncidents?: number
 
   @Field(() => Int)
-  openIncidents?: number;
+  openIncidents?: number
 
   @Field(() => Int)
-  inProgressIncidents?: number;
+  inProgressIncidents?: number
 
   @Field(() => Int)
-  resolvedIncidents?: number;
+  resolvedIncidents?: number
 
   @Field(() => [IncidentTypeCount])
-  incidentsByType?: IncidentTypeCount[];
+  incidentsByType?: IncidentTypeCount[]
+
+  @Field(() => Int, { nullable: true })
+  averageResolutionTime?: number
+
+  @Field(() => Int, { nullable: true })
+  overdueIncidents?: number
 }

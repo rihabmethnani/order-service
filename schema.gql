@@ -25,21 +25,21 @@ type Order {
 
 """Status of the order"""
 enum OrderStatus {
-  PENDING
-  IN_CENTRAL_WAREHOUSE
-  ASSIGNED
-  OUT_FOR_DELIVERY
-  DELIVERED
-  DELIVERY_FAILED
-  RETURNED
-  CANCELED
-  PENDING_RESOLUTION
-  FOLLOW_UP
-  DELAYED
-  PARTIALLY_DELIVERED
-  IN_WAREHOUSE
-  AWAITING_CONFIRMATION
-  VERIFICATION
+  EN_ATTENTE
+  ATTRIBUE
+  EN_LIVRAISON
+  LIVRE
+  ECHEC_LIVRAISON
+  RETOURNE
+  ANNULE
+  EN_ATTENTE_RESOLUTION
+  RETARDE
+  PARTIELLEMENT_LIVRE
+  EN_ENTREPOT
+  EN_ATTENTE_CONFIRMATION
+  EN_VERIFICATION
+  RELANCE
+  VERIFICATION_COMPLETE
 }
 
 """Incident descriptions of the order"""
@@ -87,6 +87,11 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+type Coordinates {
+  lat: Float!
+  lng: Float!
+}
+
 type Course {
   _id: ID!
   orderIds: [String!]!
@@ -94,12 +99,14 @@ type Course {
   adminId: String
   assistantId: String
   status: OrderStatus!
-  pointDepart: String!
+  pointDepart: Coordinates
   pointArrivee: [String!]!
   distance: Float!
   duree: Float!
   dateDepart: DateTime!
   dateArrivee: DateTime!
+  route: [Coordinates!]
+  detailedRoute: [Coordinates!]
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -121,42 +128,27 @@ type History {
   timestamp: DateTime!
 }
 
-type GeoJSON {
-  type: String!
-  coordinates: [[Float!]!]!
-}
-
-type Route {
-  distance: Float!
-  duration: Float!
-  geometry: GeoJSON!
-}
-
-type Coordinates {
-  latitude: Float!
-  longitude: Float!
-}
-
 type Incident {
   _id: ID!
-  orderId: Order!
+  orderId: String!
+  partnerId: String
   reportedBy: String!
-  incidentType: incidentType!
+  incidentType: IncidentType!
   customDescription: String
   description: String!
   images: [String!]
   status: IncidentStatus
   priority: IncidentPriority
   comments: [CommentInfo!]
-  resolvedBy: String!
+  resolvedBy: String
   resolvedAt: DateTime
   resolutionNotes: String
   createdAt: DateTime!
   updatedAt: DateTime!
 }
 
-"""Incident type enum"""
-enum incidentType {
+"""Énumération des types d'incident"""
+enum IncidentType {
   DAMAGED_PACKAGE
   INCORRECT_ADDRESS
   CUSTOMER_NOT_FOUND
@@ -167,7 +159,7 @@ enum incidentType {
   OTHER
 }
 
-"""Incident status enum"""
+"""Énumération des statuts d'incident"""
 enum IncidentStatus {
   OPEN
   IN_PROGRESS
@@ -175,7 +167,7 @@ enum IncidentStatus {
   CANCELLED
 }
 
-"""Incident priority enum"""
+"""Énumération des priorités d'incident"""
 enum IncidentPriority {
   LOW
   MEDIUM
@@ -200,6 +192,8 @@ type IncidentStatsType {
   inProgressIncidents: Int!
   resolvedIncidents: Int!
   incidentsByType: [IncidentTypeCount!]!
+  averageResolutionTime: Int
+  overdueIncidents: Int
 }
 
 type Query {
@@ -211,22 +205,31 @@ type Query {
   ordersByStatus(status: OrderStatus!): [Order!]!
   getOrdersByIncident: [Order!]!
   getOrdersCountByStatus: [OrderStatusCount!]!
+  getOrdersByResponsibilityZone: [Order!]!
   orderHistory(orderId: String!): [History!]!
   courses: [Course!]!
   course(id: String!): Course!
-  getDriverLocation(driverId: String!): Coordinates!
-  getCoordinatesFromAddress(address: String!): Coordinates!
-  getAddressFromCoordinates(latitude: Float!, longitude: Float!): String!
-  calculateOptimalRoute(driverId: String!, input: CalculateRouteInput!): Route!
+  courseRoute(id: String!): Course!
+  courseBasic(id: String!): Course!
+  coursesByDriverId(driverId: String!): [Course!]!
   getIncidentsByOrderId(orderId: String!): [Incident!]!
+  getAllIncidents(filters: FilterIncidentInput): [Incident!]!
   getAll: [Incident!]!
   getIncidentById(incidentId: String!): Incident!
   getIncidentStats: IncidentStatsType!
+  getIncidentStatsByPartnerId: IncidentStatsType!
+  getIncidentsByPartnerId: [Incident!]!
 }
 
-input CalculateRouteInput {
-  destinationLatitude: Float!
-  destinationLongitude: Float!
+input FilterIncidentInput {
+  status: IncidentStatus
+  priority: IncidentPriority
+  incidentType: IncidentType
+  reportedBy: String
+  orderId: String
+  createdAfter: String
+  createdBefore: String
+  searchTerm: String
 }
 
 type Mutation {
@@ -237,17 +240,20 @@ type Mutation {
   reportIncident(input: ReportIncidentInput!): Order!
   recordDeliveryAttempt(orderId: String!): Order!
   reportVerificationIncident(orderId: String!, incidentType: CommonIncidentDescriptions!): Order!
+  assignOrdersToDriverOptimized(orderIds: [String!]!, driverId: String!, pointDepart: CoordinatesInput): [Order!]!
   createHistory(input: CreateHistoryInput!): History!
   createCourse(createCourseInput: CreateCourseInput!): Course!
   updateCourse(id: String!, updateCourseInput: UpdateCourseInput!): Course!
   removeCourse(id: String!): Course!
-  updateDriverLocation(input: UpdateDriverLocationInput!): Boolean!
+  createOptimizedCourse(createCourseInput: CreateCourseInput!): Course!
+  optimizeExistingCourse(courseId: String!, pointDepart: CoordinatesInput): Course!
+  optimizeCourseWithStartPoint(courseId: String!, startPoint: CoordinatesInput!): Course!
   createIncident(input: CreateIncidentInput!): Incident!
   updateIncident(input: UpdateIncidentInput!): Incident!
 }
 
 input CreateOrderInput {
-  status: OrderStatus! = PENDING
+  status: OrderStatus! = EN_ATTENTE
   clientId: String!
   amount: Float!
   description: String!
@@ -260,6 +266,11 @@ input ReportIncidentInput {
   orderId: String!
   commonIncidentType: CommonIncidentDescriptions
   customIncidentDescription: String
+}
+
+input CoordinatesInput {
+  lat: Float!
+  lng: Float!
 }
 
 input CreateHistoryInput {
@@ -278,7 +289,7 @@ input CreateCourseInput {
   adminId: String
   assistantId: String!
   status: OrderStatus!
-  pointDepart: String!
+  pointDepart: CoordinatesInput
   pointArrivee: [String!]!
   distance: Float!
   duree: Float!
@@ -292,7 +303,7 @@ input UpdateCourseInput {
   adminId: String
   assistantId: String
   status: OrderStatus
-  pointDepart: String
+  pointDepart: CoordinatesInput
   pointArrivee: [String!]
   distance: Float
   duree: Float
@@ -300,15 +311,10 @@ input UpdateCourseInput {
   dateArrivee: DateTime
 }
 
-input UpdateDriverLocationInput {
-  driverId: String!
-  latitude: Float!
-  longitude: Float!
-}
-
 input CreateIncidentInput {
   orderId: String!
-  incidentType: incidentType
+  partnerId: String
+  incidentType: IncidentType
   customDescription: String
   description: String!
   images: [String!]
@@ -316,9 +322,11 @@ input CreateIncidentInput {
 }
 
 input UpdateIncidentInput {
-  incidentId: String!
+  incidentId: ID!
   status: IncidentStatus
   priority: IncidentPriority
+  description: String
+  images: [String!]
   comment: String
   resolutionNotes: String
 }

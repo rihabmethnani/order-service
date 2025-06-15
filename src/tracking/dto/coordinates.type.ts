@@ -1,11 +1,12 @@
-// src/tracking/dto/coordinates.type.ts
-import { ObjectType, Field } from '@nestjs/graphql';
+// coordinates.schema.ts
+import { Field, ObjectType } from '@nestjs/graphql';
+import { Prop, Schema } from '@nestjs/mongoose';
 
 @ObjectType()
 export class Coordinates {
   @Field(() => Number)
-  latitude?: number;
+  lat?: number;
 
   @Field(() => Number)
-  longitude?: number;
+  lng?: number;
 }
